@@ -2,11 +2,13 @@ package wci.backend.interpreter.executors;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 import wci.intermediate.*;
 import wci.intermediate.icodeimpl.*;
 import wci.backend.interpreter.*;
-
 import static wci.intermediate.symtabimpl.SymTabKeyImpl.*;
 import static wci.intermediate.icodeimpl.ICodeNodeTypeImpl.*;
 import static wci.intermediate.icodeimpl.ICodeKeyImpl.*;
@@ -93,6 +95,26 @@ public class ExpressionExecutor extends StatementExecutor
                 boolean value = (Boolean) execute(expressionNode);
                 return !value;
             }
+            
+            case SET: {
+            	ArrayList<ICodeNode> children = node.getChildren();
+                ICodeNode expressionNode = children.get(0);
+                Set set = null;
+                if(expressionNode.getType() == INTEGER_CONSTANT) {
+                	set = new LinkedHashSet<Integer>();
+                	for (ICodeNode n : children) {
+                		Integer i = (Integer)n.getAttribute(VALUE);
+                		set.add(i);
+                	}
+                } else if(expressionNode.getType() == STRING_CONSTANT) {
+                	set = new LinkedHashSet<String>();
+                	for (ICodeNode n : children) {
+                		String s = (String)n.getAttribute(VALUE);
+                		set.add(s);
+                	}
+                }
+            	return set;
+            }
 
             // Must be a binary operator.
             default: return executeBinaryOperator(node, nodeType);
@@ -123,6 +145,9 @@ public class ExpressionExecutor extends StatementExecutor
 
         boolean integerMode = (operand1 instanceof Integer) &&
                               (operand2 instanceof Integer);
+        
+        boolean setMode = (operand1 instanceof Set) ||
+                (operand2 instanceof Set);
 
         // ====================
         // Arithmetic operators
@@ -175,6 +200,23 @@ public class ExpressionExecutor extends StatementExecutor
                         }
                     }
                 }
+            } else if (setMode) {
+            	LinkedHashSet<Integer> set1 = (LinkedHashSet<Integer>)operand1;
+            	LinkedHashSet<Integer> set2 = (LinkedHashSet<Integer>)operand2;
+            	switch (nodeType) {	
+            	case ADD: {
+            		set1.addAll(set2);
+            		return set1;
+            	}
+            	case MULTIPLY: {
+            		set1.retainAll(set2);
+            		return set1;
+            	}
+            	case SUBTRACT: {
+            		set1.removeAll(set2);
+            		return set1;
+            	}
+              }
             }
             else {
                 float value1 = operand1 instanceof Integer

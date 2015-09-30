@@ -326,15 +326,11 @@ public class ExpressionParser extends StatementParser
             
             case LEFT_BRACKET: {
             	token = nextToken();      // consume the (
-            	rootNode = ICodeFactory.createICodeNode(COMPOUND);
+            	rootNode = ICodeFactory.createICodeNode(ICodeNodeTypeImpl.SET);
             	ICodeNode newNode = null;
             	while(true) {
             		// Parse an expression and make its node the root node.
             		newNode = parseExpression(token);
-
-            		// need to get the contents of the brackets here
-            		// and parse them one at a time
-            		// add them to the parse tree
 
             		// Look for the matching ) token.
             		token = currentToken();
@@ -389,7 +385,7 @@ public class ExpressionParser extends StatementParser
     private ICodeNode parseDotDotExpression(ICodeNode startNode, ICodeNode endNode)
     throws Exception
     {
-    	ICodeNode rootNode = ICodeFactory.createICodeNode(COMPOUND);
+    	ICodeNode rootNode = ICodeFactory.createICodeNode(ICodeNodeTypeImpl.SET);
     	rootNode.addChild(startNode);
     	// first, verify format of the range
     	//if (startNode.getType() != endNode.getType()) throw new Exception("Invalid types");
@@ -398,7 +394,7 @@ public class ExpressionParser extends StatementParser
     		int endIndex = (int)endNode.getAttribute(VALUE);
     		if(endIndex < startIndex) throw new Exception("End index before start index!");
     		
-    		for(int i = startIndex; i<= endIndex; i++) {
+    		for(int i = startIndex+1; i< endIndex; i++) {
     			ICodeNode newNode = ICodeFactory.createICodeNode(INTEGER_CONSTANT);
                 newNode.setAttribute(VALUE, i);
                 rootNode.addChild(newNode);
@@ -411,6 +407,10 @@ public class ExpressionParser extends StatementParser
     		String endIndex = (String)endNode.getAttribute(VALUE);
     		if(endIndex.charAt(0) < startIndex.charAt(0)) throw new Exception("End index before start index!");
     	}	
+    	else if (startNode.getType() == VARIABLE || endNode.getType() == VARIABLE) {
+
+    		rootNode.addChild(endNode);
+    	}
     	
         return rootNode;
     }
