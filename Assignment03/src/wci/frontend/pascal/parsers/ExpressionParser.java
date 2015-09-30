@@ -1,15 +1,15 @@
 package wci.frontend.pascal.parsers;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 
 import wci.frontend.*;
 import wci.frontend.pascal.*;
 import wci.intermediate.*;
 import wci.intermediate.icodeimpl.*;
-
 import static wci.frontend.pascal.PascalTokenType.*;
-import static wci.frontend.pascal.PascalTokenType.NOT;
 import static wci.frontend.pascal.PascalErrorCode.*;
 import static wci.intermediate.icodeimpl.ICodeNodeTypeImpl.*;
 import static wci.intermediate.icodeimpl.ICodeKeyImpl.*;
@@ -323,6 +323,59 @@ public class ExpressionParser extends StatementParser
 
                 break;
             }
+            
+            case LEFT_BRACKET: {
+            	token = nextToken();      // consume the (
+            	rootNode = ICodeFactory.createICodeNode(COMPOUND);
+            	ICodeNode newNode = null;
+            	while(true) {
+            		// Parse an expression and make its node the root node.
+            		newNode = parseExpression(token);
+
+            		// need to get the contents of the brackets here
+            		// and parse them one at a time
+            		// add them to the parse tree
+
+            		// Look for the matching ) token.
+            		token = currentToken();
+            		if (token.getType() == RIGHT_BRACKET) {
+            			token = nextToken();  // consume the ]
+            			rootNode.addChild(newNode);
+            			
+            			break;
+            		}
+            		else if (token.getType() == COMMA) {
+            			token = nextToken();  // consume the ,
+            			rootNode.addChild(newNode);
+            			continue;
+            		}
+            		else if (token.getType() == DOT_DOT) {
+            			token = nextToken();  // consume the ..
+            			try {
+            			ICodeNode newNode2 = parseExpression(token);
+            			rootNode.addChild(parseDotDotExpression(newNode, newNode2));
+            			}
+            			catch (Exception e) {
+            				errorHandler.flag(token, INVALID_SUBRANGE_TYPE, this);
+            				break;
+            			}
+            			token = currentToken();
+            			if (token.getType() == RIGHT_BRACKET) {
+                			token = nextToken();  // consume the ]
+                			rootNode.addChild(newNode);
+                			break;
+            			} else {
+            			token = nextToken(); // consume the ,
+            			continue;
+            			}
+            		}
+            		else {
+            			errorHandler.flag(token, MISSING_RIGHT_BRACKET, this);
+            			break;
+            		}               
+            	}
+            	break;
+            }
 
             default: {
                 errorHandler.flag(token, UNEXPECTED_TOKEN, this);
@@ -330,6 +383,35 @@ public class ExpressionParser extends StatementParser
             }
         }
 
+        return rootNode;
+    }
+    
+    private ICodeNode parseDotDotExpression(ICodeNode startNode, ICodeNode endNode)
+    throws Exception
+    {
+    	ICodeNode rootNode = ICodeFactory.createICodeNode(COMPOUND);
+    	rootNode.addChild(startNode);
+    	// first, verify format of the range
+    	//if (startNode.getType() != endNode.getType()) throw new Exception("Invalid types");
+    	if (startNode.getType() == INTEGER_CONSTANT) {
+    		int startIndex = (int)startNode.getAttribute(VALUE);
+    		int endIndex = (int)endNode.getAttribute(VALUE);
+    		if(endIndex < startIndex) throw new Exception("End index before start index!");
+    		
+    		for(int i = startIndex; i<= endIndex; i++) {
+    			ICodeNode newNode = ICodeFactory.createICodeNode(INTEGER_CONSTANT);
+                newNode.setAttribute(VALUE, i);
+                rootNode.addChild(newNode);
+    		}
+    		rootNode.addChild(endNode);
+    		return rootNode;
+    	}
+    	else if (startNode.getType() == STRING_CONSTANT) {
+    		String startIndex = (String)(startNode.getAttribute(VALUE));
+    		String endIndex = (String)endNode.getAttribute(VALUE);
+    		if(endIndex.charAt(0) < startIndex.charAt(0)) throw new Exception("End index before start index!");
+    	}	
+    	
         return rootNode;
     }
 }
