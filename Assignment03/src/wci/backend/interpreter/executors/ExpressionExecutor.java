@@ -97,22 +97,8 @@ public class ExpressionExecutor extends StatementExecutor
             }
             
             case SET: {
-            	ArrayList<ICodeNode> children = node.getChildren();
-                ICodeNode expressionNode = children.get(0);
-                Set set = null;
-                if(expressionNode.getType() == INTEGER_CONSTANT) {
-                	set = new LinkedHashSet<Integer>();
-                	for (ICodeNode n : children) {
-                		Integer i = (Integer)n.getAttribute(VALUE);
-                		set.add(i);
-                	}
-                } else if(expressionNode.getType() == STRING_CONSTANT) {
-                	set = new LinkedHashSet<String>();
-                	for (ICodeNode n : children) {
-                		String s = (String)n.getAttribute(VALUE);
-                		set.add(s);
-                	}
-                }
+            	Set set = null;
+            	set = ExecuteSet(node);
             	return set;
             }
 
@@ -203,18 +189,20 @@ public class ExpressionExecutor extends StatementExecutor
             } else if (setMode) {
             	LinkedHashSet<Integer> set1 = (LinkedHashSet<Integer>)operand1;
             	LinkedHashSet<Integer> set2 = (LinkedHashSet<Integer>)operand2;
+            	LinkedHashSet<Integer> result = new LinkedHashSet<Integer>();
+            	for (Integer i : set1) result.add(i);
             	switch (nodeType) {	
             	case ADD: {
-            		set1.addAll(set2);
-            		return set1;
+            		result.addAll(set2);
+            		return result;
             	}
             	case MULTIPLY: {
-            		set1.retainAll(set2);
-            		return set1;
+            		result.retainAll(set2);
+            		return result;
             	}
             	case SUBTRACT: {
-            		set1.removeAll(set2);
-            		return set1;
+            		result.removeAll(set2);
+            		return result;
             	}
               }
             }
@@ -295,5 +283,31 @@ public class ExpressionExecutor extends StatementExecutor
         }
 
         return 0;  // should never get here
+    }
+    
+    private Set ExecuteSet(ICodeNode head) {
+    	Set result = new LinkedHashSet<Integer>();
+    	
+    	for(ICodeNode node : head.getChildren()) {
+    		if(node.getType() == INTEGER_CONSTANT || node.getType() == VARIABLE) {
+    			Integer i = (Integer)execute(node);
+    			result.add(i);
+    		}
+    		else if (node.getType() == SUBSCRIPTS) {
+    			ICodeNode sub1 = node.getChildren().get(0);
+    			ICodeNode sub2 = node.getChildren().get(1); 
+    			Integer start = (Integer)execute(sub1);
+    			Integer end = (Integer)execute(sub1);
+    			if(end < start) errorHandler.flag(sub1, INVALID_INPUT, this);
+    			result.add(start);
+    			for(int i = start+1; i<end;i++) {
+    				result.add(i);
+    			}
+    			result.add(end);
+    		}
+    	}
+    	
+    	
+    	return result;
     }
 }

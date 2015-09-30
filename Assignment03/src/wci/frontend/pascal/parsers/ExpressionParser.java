@@ -329,6 +329,11 @@ public class ExpressionParser extends StatementParser
             	rootNode = ICodeFactory.createICodeNode(ICodeNodeTypeImpl.SET);
             	ICodeNode newNode = null;
             	while(true) {
+            		if (token.getType() == RIGHT_BRACKET) {
+            			token = nextToken();  // consume the ]
+            			break;
+            		}
+            		
             		// Parse an expression and make its node the root node.
             		newNode = parseExpression(token);
 
@@ -349,7 +354,9 @@ public class ExpressionParser extends StatementParser
             			token = nextToken();  // consume the ..
             			try {
             			ICodeNode newNode2 = parseExpression(token);
-            			rootNode.addChild(parseDotDotExpression(newNode, newNode2));
+            			ArrayList<ICodeNode> list = parseDotDotExpression(newNode, newNode2);
+            			//rootNode.addChild(parseDotDotExpression(newNode, newNode2));
+            			for(ICodeNode node : list) rootNode.addChild(node);
             			}
             			catch (Exception e) {
             				errorHandler.flag(token, INVALID_SUBRANGE_TYPE, this);
@@ -382,36 +389,41 @@ public class ExpressionParser extends StatementParser
         return rootNode;
     }
     
-    private ICodeNode parseDotDotExpression(ICodeNode startNode, ICodeNode endNode)
+    private ArrayList<ICodeNode> parseDotDotExpression(ICodeNode startNode, ICodeNode endNode)
     throws Exception
     {
-    	ICodeNode rootNode = ICodeFactory.createICodeNode(ICodeNodeTypeImpl.SET);
-    	rootNode.addChild(startNode);
+    	ICodeNode rootNode = null;
+    	ArrayList<ICodeNode> list = new ArrayList<ICodeNode>();
     	// first, verify format of the range
     	//if (startNode.getType() != endNode.getType()) throw new Exception("Invalid types");
     	if (startNode.getType() == INTEGER_CONSTANT) {
+    		rootNode = ICodeFactory.createICodeNode(ICodeNodeTypeImpl.INTEGER_CONSTANT);
+    		
     		int startIndex = (int)startNode.getAttribute(VALUE);
     		int endIndex = (int)endNode.getAttribute(VALUE);
     		if(endIndex < startIndex) throw new Exception("End index before start index!");
     		
-    		for(int i = startIndex+1; i< endIndex; i++) {
+    		for(int i = startIndex; i<= endIndex; i++) {
     			ICodeNode newNode = ICodeFactory.createICodeNode(INTEGER_CONSTANT);
                 newNode.setAttribute(VALUE, i);
                 rootNode.addChild(newNode);
+                list.add(newNode);
     		}
-    		rootNode.addChild(endNode);
-    		return rootNode;
+    		//return rootNode;
     	}
-    	else if (startNode.getType() == STRING_CONSTANT) {
+    	/*else if (startNode.getType() == STRING_CONSTANT) {
+    		rootNode = ICodeFactory.createICodeNode(ICodeNodeTypeImpl.SUBSCRIPTS);
     		String startIndex = (String)(startNode.getAttribute(VALUE));
     		String endIndex = (String)endNode.getAttribute(VALUE);
     		if(endIndex.charAt(0) < startIndex.charAt(0)) throw new Exception("End index before start index!");
-    	}	
+    	}*/	
     	else if (startNode.getType() == VARIABLE || endNode.getType() == VARIABLE) {
-
+    		rootNode = ICodeFactory.createICodeNode(ICodeNodeTypeImpl.SUBSCRIPTS);
+    		rootNode.addChild(startNode);
     		rootNode.addChild(endNode);
+    		list.add(rootNode);
     	}
     	
-        return rootNode;
+        return list;
     }
 }
