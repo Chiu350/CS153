@@ -98,13 +98,22 @@ public class ExpressionExecutor extends StatementExecutor
             
             case SET:
                 HashSet<Integer> values = (HashSet<Integer>) node.getAttribute(VALUE);
-                values.clear();
+                //values.clear();
                 children = node.getChildren();
+                for(ICodeNode child : children)
+                if (child.getType()==SUBRANGE) {
+
+                	Integer start  = (Integer)execute(child.getChildren().get(0));
+                	Integer end  = (Integer)execute(child.getChildren().get(1));
+                	for (int i = start; i <= end; i++) values.add(i);
+                	}
+                else
+                	for (ICodeNode childNode : children) {
+                		values.add((Integer) execute(childNode));}
                 return values;
 
             case IN_SET:
                 return executeBinaryOperator(node, nodeType);
-
 
             // Must be a binary operator.
             default:
