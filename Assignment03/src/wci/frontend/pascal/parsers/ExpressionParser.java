@@ -1,18 +1,18 @@
 package wci.frontend.pascal.parsers;
 
 import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.List;
-
 import wci.frontend.*;
 import wci.frontend.pascal.*;
 import wci.intermediate.*;
 import wci.intermediate.icodeimpl.*;
 import static wci.frontend.pascal.PascalTokenType.*;
-import static wci.frontend.pascal.PascalErrorCode.*;
-import static wci.intermediate.icodeimpl.ICodeNodeTypeImpl.*;
 import static wci.intermediate.icodeimpl.ICodeKeyImpl.*;
+import wci.frontend.Token;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import static wci.frontend.pascal.PascalErrorCode.*;;
+import static wci.intermediate.icodeimpl.ICodeNodeTypeImpl.*;
 
 /**
  * <h1>ExpressionParser</h1>
@@ -20,44 +20,41 @@ import static wci.intermediate.icodeimpl.ICodeKeyImpl.*;
  * <p>Parse a Pascal expression.</p>
  *
  * <p>Copyright (c) 2009 by Ronald Mak</p>
- * <p>For instructional purposes only.  No warranties.</p>
+ * <p>For instructional purposes only. No warranties.</p>
  */
-public class ExpressionParser extends StatementParser
-{
+public class ExpressionParser extends StatementParser {
+
     /**
      * Constructor.
+     *
      * @param parent the parent parser.
      */
-    public ExpressionParser(PascalParserTD parent)
-    {
+    public ExpressionParser(PascalParserTD parent) {
         super(parent);
     }
-
     // Synchronization set for starting an expression.
     static final EnumSet<PascalTokenType> EXPR_START_SET =
-        EnumSet.of(PLUS, MINUS, IDENTIFIER, INTEGER, REAL, STRING,
-                   PascalTokenType.NOT, LEFT_PAREN);
+            EnumSet.of(PLUS, MINUS, IDENTIFIER, INTEGER, REAL, STRING,
+                    PascalTokenType.NOT, LEFT_PAREN);
 
     /**
      * Parse an expression.
+     *
      * @param token the initial token.
      * @return the root node of the generated parse tree.
      * @throws Exception if an error occurred.
      */
     public ICodeNode parse(Token token)
-        throws Exception
-    {
+            throws Exception {
         return parseExpression(token);
     }
-
     // Set of relational operators.
     private static final EnumSet<PascalTokenType> REL_OPS =
-        EnumSet.of(EQUALS, NOT_EQUALS, LESS_THAN, LESS_EQUALS,
-                   GREATER_THAN, GREATER_EQUALS);
-
+            EnumSet.of(EQUALS, NOT_EQUALS, LESS_THAN, LESS_EQUALS,
+                    GREATER_THAN, GREATER_EQUALS, IN);
     // Map relational operator tokens to node types.
-    private static final HashMap<PascalTokenType, ICodeNodeType>
-        REL_OPS_MAP = new HashMap<PascalTokenType, ICodeNodeType>();
+    private static final HashMap<PascalTokenType, ICodeNodeType> REL_OPS_MAP = new HashMap<PascalTokenType, ICodeNodeType>();
+
     static {
         REL_OPS_MAP.put(EQUALS, EQ);
         REL_OPS_MAP.put(NOT_EQUALS, NE);
@@ -65,20 +62,21 @@ public class ExpressionParser extends StatementParser
         REL_OPS_MAP.put(LESS_EQUALS, LE);
         REL_OPS_MAP.put(GREATER_THAN, GT);
         REL_OPS_MAP.put(GREATER_EQUALS, GE);
-    };
+        REL_OPS_MAP.put(IN, IN_SET);
+    }
 
     /**
      * Parse an expression.
+     *
      * @param token the initial token.
      * @return the root of the generated parse subtree.
      * @throws Exception if an error occurred.
      */
     private ICodeNode parseExpression(Token token)
-        throws Exception
-    {
+            throws Exception {
         // Parse a simple expression and make the root of its tree
         // the root node.
-        ICodeNode rootNode = parseSimpleExpression(token);
+        ICodeNode root = parseSimpleExpression(token);
 
         token = currentToken();
         TokenType tokenType = token.getType();
@@ -90,43 +88,45 @@ public class ExpressionParser extends StatementParser
             // as its first child.
             ICodeNodeType nodeType = REL_OPS_MAP.get(tokenType);
             ICodeNode opNode = ICodeFactory.createICodeNode(nodeType);
-            opNode.addChild(rootNode);
+            opNode.addChild(root);
 
+            Token lastToken = token;
             token = nextToken();  // consume the operator
 
             // Parse the second simple expression.  The operator node adopts
             // the simple expression's tree as its second child.
-            opNode.addChild(parseSimpleExpression(token));
+            ICodeNode a = parseSimpleExpression(token);
+            opNode.addChild(a);
+
+
 
             // The operator node becomes the new root node.
-            rootNode = opNode;
+            root = opNode;
         }
 
-        return rootNode;
+        return root;
     }
-
     // Set of additive operators.
     private static final EnumSet<PascalTokenType> ADD_OPS =
-        EnumSet.of(PLUS, MINUS, PascalTokenType.OR);
-
+            EnumSet.of(PLUS, MINUS, PascalTokenType.OR);
     // Map additive operator tokens to node types.
-    private static final HashMap<PascalTokenType, ICodeNodeTypeImpl>
-        ADD_OPS_OPS_MAP = new HashMap<PascalTokenType, ICodeNodeTypeImpl>();
+    private static final HashMap<PascalTokenType, ICodeNodeTypeImpl> ADD_OPS_OPS_MAP = new HashMap<PascalTokenType, ICodeNodeTypeImpl>();
+
     static {
         ADD_OPS_OPS_MAP.put(PLUS, ADD);
         ADD_OPS_OPS_MAP.put(MINUS, SUBTRACT);
         ADD_OPS_OPS_MAP.put(PascalTokenType.OR, ICodeNodeTypeImpl.OR);
-    };
+    }
 
     /**
      * Parse a simple expression.
+     *
      * @param token the initial token.
      * @return the root of the generated parse subtree.
      * @throws Exception if an error occurred.
      */
     private ICodeNode parseSimpleExpression(Token token)
-        throws Exception
-    {
+            throws Exception {
         TokenType signType = null;  // type of leading sign (if any)
 
         // Look for a leading + or - sign.
@@ -137,7 +137,7 @@ public class ExpressionParser extends StatementParser
         }
 
         // Parse a term and make the root of its tree the root node.
-        ICodeNode rootNode = parseTerm(token);
+        ICodeNode root = parseTerm(token);
 
         // Was there a leading - sign?
         if (signType == MINUS) {
@@ -145,8 +145,8 @@ public class ExpressionParser extends StatementParser
             // Create a NEGATE node and adopt the current tree
             // as its child. The NEGATE node becomes the new root node.
             ICodeNode negateNode = ICodeFactory.createICodeNode(NEGATE);
-            negateNode.addChild(rootNode);
-            rootNode = negateNode;
+            negateNode.addChild(root);
+            root = negateNode;
         }
 
         token = currentToken();
@@ -159,50 +159,47 @@ public class ExpressionParser extends StatementParser
             // as its first child.
             ICodeNodeType nodeType = ADD_OPS_OPS_MAP.get(tokenType);
             ICodeNode opNode = ICodeFactory.createICodeNode(nodeType);
-            opNode.addChild(rootNode);
+            opNode.addChild(root);
 
             token = nextToken();  // consume the operator
 
-            // Parse another term.  The operator node adopts
-            // the term's tree as its second child.
+            // Parse another term
             opNode.addChild(parseTerm(token));
 
             // The operator node becomes the new root node.
-            rootNode = opNode;
+            root = opNode;
 
             token = currentToken();
             tokenType = token.getType();
         }
 
-        return rootNode;
+        return root;
     }
-
     // Set of multiplicative operators.
     private static final EnumSet<PascalTokenType> MULT_OPS =
-        EnumSet.of(STAR, SLASH, DIV, PascalTokenType.MOD, PascalTokenType.AND);
-
+            EnumSet.of(STAR, SLASH, DIV, PascalTokenType.MOD, PascalTokenType.AND);
     // Map multiplicative operator tokens to node types.
-    private static final HashMap<PascalTokenType, ICodeNodeType>
-        MULT_OPS_OPS_MAP = new HashMap<PascalTokenType, ICodeNodeType>();
+    private static final HashMap<PascalTokenType, ICodeNodeType> MULT_OPS_OPS_MAP = new HashMap<PascalTokenType, ICodeNodeType>();
+
     static {
         MULT_OPS_OPS_MAP.put(STAR, MULTIPLY);
         MULT_OPS_OPS_MAP.put(SLASH, FLOAT_DIVIDE);
         MULT_OPS_OPS_MAP.put(DIV, INTEGER_DIVIDE);
         MULT_OPS_OPS_MAP.put(PascalTokenType.MOD, ICodeNodeTypeImpl.MOD);
         MULT_OPS_OPS_MAP.put(PascalTokenType.AND, ICodeNodeTypeImpl.AND);
-    };
+    }
 
     /**
      * Parse a term.
+     *
      * @param token the initial token.
      * @return the root of the generated parse subtree.
      * @throws Exception if an error occurred.
      */
     private ICodeNode parseTerm(Token token)
-        throws Exception
-    {
+            throws Exception {
         // Parse a factor and make its node the root node.
-        ICodeNode rootNode = parseFactor(token);
+        ICodeNode root = parseFactor(token);
 
         token = currentToken();
         TokenType tokenType = token.getType();
@@ -214,35 +211,35 @@ public class ExpressionParser extends StatementParser
             // as its first child.
             ICodeNodeType nodeType = MULT_OPS_OPS_MAP.get(tokenType);
             ICodeNode opNode = ICodeFactory.createICodeNode(nodeType);
-            opNode.addChild(rootNode);
+            opNode.addChild(root);
 
             token = nextToken();  // consume the operator
 
-            // Parse another factor.  The operator node adopts
-            // the term's tree as its second child.
-            opNode.addChild(parseFactor(token));
+            // Parse another factor
+            ICodeNode a = parseFactor(token);
+            opNode.addChild(a);
 
             // The operator node becomes the new root node.
-            rootNode = opNode;
+            root = opNode;
 
             token = currentToken();
             tokenType = token.getType();
         }
 
-        return rootNode;
+        return root;
     }
 
     /**
      * Parse a factor.
+     *
      * @param token the initial token.
      * @return the root of the generated parse subtree.
      * @throws Exception if an error occurred.
      */
     private ICodeNode parseFactor(Token token)
-        throws Exception
-    {
+            throws Exception {
         TokenType tokenType = token.getType();
-        ICodeNode rootNode = null;
+        ICodeNode root = null;
 
         switch ((PascalTokenType) tokenType) {
 
@@ -256,8 +253,8 @@ public class ExpressionParser extends StatementParser
                     id = symTabStack.enterLocal(name);
                 }
 
-                rootNode = ICodeFactory.createICodeNode(VARIABLE);
-                rootNode.setAttribute(ID, id);
+                root = ICodeFactory.createICodeNode(VARIABLE);
+                root.setAttribute(ID, id);
                 id.appendLineNumber(token.getLineNumber());
 
                 token = nextToken();  // consume the identifier
@@ -266,8 +263,8 @@ public class ExpressionParser extends StatementParser
 
             case INTEGER: {
                 // Create an INTEGER_CONSTANT node as the root node.
-                rootNode = ICodeFactory.createICodeNode(INTEGER_CONSTANT);
-                rootNode.setAttribute(VALUE, token.getValue());
+                root = ICodeFactory.createICodeNode(INTEGER_CONSTANT);
+                root.setAttribute(VALUE, token.getValue());
 
                 token = nextToken();  // consume the number
                 break;
@@ -275,8 +272,8 @@ public class ExpressionParser extends StatementParser
 
             case REAL: {
                 // Create an REAL_CONSTANT node as the root node.
-                rootNode = ICodeFactory.createICodeNode(REAL_CONSTANT);
-                rootNode.setAttribute(VALUE, token.getValue());
+                root = ICodeFactory.createICodeNode(REAL_CONSTANT);
+                root.setAttribute(VALUE, token.getValue());
 
                 token = nextToken();  // consume the number
                 break;
@@ -286,8 +283,8 @@ public class ExpressionParser extends StatementParser
                 String value = (String) token.getValue();
 
                 // Create a STRING_CONSTANT node as the root node.
-                rootNode = ICodeFactory.createICodeNode(STRING_CONSTANT);
-                rootNode.setAttribute(VALUE, value);
+                root = ICodeFactory.createICodeNode(STRING_CONSTANT);
+                root.setAttribute(VALUE, value);
 
                 token = nextToken();  // consume the string
                 break;
@@ -297,11 +294,11 @@ public class ExpressionParser extends StatementParser
                 token = nextToken();  // consume the NOT
 
                 // Create a NOT node as the root node.
-                rootNode = ICodeFactory.createICodeNode(ICodeNodeTypeImpl.NOT);
+                root = ICodeFactory.createICodeNode(ICodeNodeTypeImpl.NOT);
 
                 // Parse the factor.  The NOT node adopts the
                 // factor node as its child.
-                rootNode.addChild(parseFactor(token));
+                root.addChild(parseFactor(token));
 
                 break;
             }
@@ -310,74 +307,34 @@ public class ExpressionParser extends StatementParser
                 token = nextToken();      // consume the (
 
                 // Parse an expression and make its node the root node.
-                rootNode = parseExpression(token);
+                root = parseExpression(token);
 
                 // Look for the matching ) token.
                 token = currentToken();
                 if (token.getType() == RIGHT_PAREN) {
                     token = nextToken();  // consume the )
-                }
-                else {
+                } else {
                     errorHandler.flag(token, MISSING_RIGHT_PAREN, this);
                 }
 
                 break;
             }
-            
-            case LEFT_BRACKET: {
-            	token = nextToken();      // consume the (
-            	rootNode = ICodeFactory.createICodeNode(ICodeNodeTypeImpl.SET);
-            	ICodeNode newNode = null;
-            	while(true) {
-            		if (token.getType() == RIGHT_BRACKET) {
-            			token = nextToken();  // consume the ]
-            			break;
-            		}
-            		
-            		// Parse an expression and make its node the root node.
-            		newNode = parseExpression(token);
 
-            		// Look for the matching ) token.
-            		token = currentToken();
-            		if (token.getType() == RIGHT_BRACKET) {
-            			token = nextToken();  // consume the ]
-            			rootNode.addChild(newNode);
-            			
-            			break;
-            		}
-            		else if (token.getType() == COMMA) {
-            			token = nextToken();  // consume the ,
-            			rootNode.addChild(newNode);
-            			continue;
-            		}
-            		else if (token.getType() == DOT_DOT) {
-            			token = nextToken();  // consume the ..
-            			try {
-            			ICodeNode newNode2 = parseExpression(token);
-            			ArrayList<ICodeNode> list = parseDotDotExpression(newNode, newNode2);
-            			//rootNode.addChild(parseDotDotExpression(newNode, newNode2));
-            			for(ICodeNode node : list) rootNode.addChild(node);
-            			}
-            			catch (Exception e) {
-            				errorHandler.flag(token, INVALID_SUBRANGE_TYPE, this);
-            				break;
-            			}
-            			token = currentToken();
-            			if (token.getType() == RIGHT_BRACKET) {
-                			token = nextToken();  // consume the ]
-                			rootNode.addChild(newNode);
-                			break;
-            			} else {
-            			token = nextToken(); // consume the ,
-            			continue;
-            			}
-            		}
-            		else {
-            			errorHandler.flag(token, MISSING_RIGHT_BRACKET, this);
-            			break;
-            		}               
-            	}
-            	break;
+            // Case statement for set expressions
+            case LEFT_BRACKET: {
+                token = nextToken();      // consume the [
+
+                // Parse the set and make it the root node
+                root = parsing(token);
+
+                // Look for the matching ] token.
+                token = currentToken();
+                if (token.getType() == RIGHT_BRACKET) {
+                    token = nextToken();  // consume the ]
+                } else {
+                    errorHandler.flag(token, MISSING_RIGHT_BRACKET, this);
+                }
+                break;
             }
 
             default: {
@@ -386,44 +343,82 @@ public class ExpressionParser extends StatementParser
             }
         }
 
-        return rootNode;
+        return root;
     }
-    
-    private ArrayList<ICodeNode> parseDotDotExpression(ICodeNode startNode, ICodeNode endNode)
-    throws Exception
-    {
-    	ICodeNode rootNode = null;
-    	ArrayList<ICodeNode> list = new ArrayList<ICodeNode>();
-    	// first, verify format of the range
-    	//if (startNode.getType() != endNode.getType()) throw new Exception("Invalid types");
-    	if (startNode.getType() == INTEGER_CONSTANT) {
-    		rootNode = ICodeFactory.createICodeNode(ICodeNodeTypeImpl.INTEGER_CONSTANT);
-    		
-    		int startIndex = (int)startNode.getAttribute(VALUE);
-    		int endIndex = (int)endNode.getAttribute(VALUE);
-    		if(endIndex < startIndex) throw new Exception("End index before start index!");
-    		
-    		for(int i = startIndex; i<= endIndex; i++) {
-    			ICodeNode newNode = ICodeFactory.createICodeNode(INTEGER_CONSTANT);
-                newNode.setAttribute(VALUE, i);
-                rootNode.addChild(newNode);
-                list.add(newNode);
-    		}
-    		//return rootNode;
-    	}
-    	/*else if (startNode.getType() == STRING_CONSTANT) {
-    		rootNode = ICodeFactory.createICodeNode(ICodeNodeTypeImpl.SUBSCRIPTS);
-    		String startIndex = (String)(startNode.getAttribute(VALUE));
-    		String endIndex = (String)endNode.getAttribute(VALUE);
-    		if(endIndex.charAt(0) < startIndex.charAt(0)) throw new Exception("End index before start index!");
-    	}*/	
-    	else if (startNode.getType() == VARIABLE || endNode.getType() == VARIABLE) {
-    		rootNode = ICodeFactory.createICodeNode(ICodeNodeTypeImpl.SUBSCRIPTS);
-    		rootNode.addChild(startNode);
-    		rootNode.addChild(endNode);
-    		list.add(rootNode);
-    	}
-    	
-        return list;
+    private static final HashMap<PascalTokenType, ICodeNodeTypeImpl> MAP = new HashMap<PascalTokenType, ICodeNodeTypeImpl>();
+
+    private ICodeNode parsing(Token token)
+            throws Exception {
+        ICodeNode root = ICodeFactory.createICodeNode(ICodeNodeTypeImpl.SET);
+        boolean isDone = false;
+        HashSet<Integer> values = new HashSet<Integer>();
+        root.setAttribute(VALUE, new HashSet<Integer>());
+
+        while (token.getType() != RIGHT_BRACKET && token.getType() != ERROR && !isDone) 
+        {
+            ICodeNode left = parseSimpleExpression(token);
+
+            if (left.getType() == INTEGER_CONSTANT
+                    && !values.add((Integer) left.getAttribute(VALUE)))
+            {
+                errorHandler.flag(token, INVALID, this);
+            }
+
+            token = currentToken();
+
+            switch ((PascalTokenType) token.getType()) {
+                default:
+                    errorHandler.flag(token, UNEXPECTED_TOKEN, this);
+                    break;
+                case DOT_DOT:
+                    token = nextToken();
+                    if (token.getType() == COMMA) {
+                        errorHandler.flag(token, INVALID_SUBRANGE_TYPE, this);
+                        token = nextToken(); 
+                        root.addChild(left); 
+                    }
+                    else {
+                        ICodeNode right = parseSimpleExpression(token);
+                        ICodeNode subrangeNode = ICodeFactory.createICodeNode(SUBRANGE);
+                        subrangeNode.addChild(left);
+                        subrangeNode.addChild(right);
+                        root.addChild(subrangeNode);
+
+                        if (left.getType() == INTEGER_CONSTANT && right.getType() == INTEGER_CONSTANT) {
+                            boolean doubles = false;
+                            Integer leftRange = (Integer) left.getAttribute(VALUE) + 1;
+                            Integer rightRange = (Integer) right.getAttribute(VALUE);
+
+                            while (leftRange <= rightRange) {
+                                if (!values.add(leftRange++) && !doubles) {
+                                    errorHandler.flag(token, INVALID, this);
+                                    doubles = true;
+                                }
+                            }
+                        }
+
+                        token = currentToken();
+                        if (token.getType() == COMMA) {
+                            token = nextToken(); // Consume the ,
+                        }
+                        else if (token.getType() != RIGHT_BRACKET) {
+                            errorHandler.flag(token, MISSING_COMMA, this);
+                        }
+                    }
+                    break;
+                    case COMMA:
+                    root.addChild(left);
+                    token = nextToken();
+                    if (token.getType() == COMMA) {
+                        errorHandler.flag(token, INVALID, this);
+                        token = nextToken();
+                    }
+                    break;
+                    case RIGHT_BRACKET:
+                    root.addChild(left);
+                    break;
+            }
+        }
+        return root;
     }
 }
